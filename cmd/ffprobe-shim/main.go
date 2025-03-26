@@ -1,11 +1,13 @@
 package main
 
 import (
+    "context"
     "flag"
     "fmt"
     "os"
     "os/exec"
     "strconv"
+    "time"
 )
 
 func main() {
@@ -53,13 +55,21 @@ func main() {
     ffprobeArgs := []string{"-probesize", probeSize, "-analyzeduration", analyzeDuration}
     ffprobeArgs = append(ffprobeArgs, args...)
 
-    // Execute the real ffprobe
-    cmd := exec.Command("ffprobe-real", ffprobeArgs...)
+    // Create a context with a 5-second timeout
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+
+    // Execute the real ffprobe with the context
+    cmd := exec.CommandContext(ctx, "ffprobe-real", ffprobeArgs...)
     cmd.Stdout = os.Stdout
     cmd.Stderr = os.Stderr
 
     if err := cmd.Run(); err != nil {
-        fmt.Fprintf(os.Stderr, "Error executing ffprobe: %v\n", err)
+        if ctx.Err() == context.DeadlineExceeded {
+            fmt.Fprintf(os.Stderr, "Error: ffprobe command timed out\n")
+        } else {
+            fmt.Fprintf(os.Stderr, "Error executing ffprobe: %v\n", err)
+        }
         os.Exit(1)
     }
 }
