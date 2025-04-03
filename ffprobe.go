@@ -16,10 +16,8 @@ import (
 // Path to real ffprobe (for fallback)
 var REAL_FFPROBE = func() string {
 	if value, exists := os.LookupEnv("REAL_FFPROBE_PATH"); exists {
-		log.Printf("REAL_FFPROBE_PATH environment variable found: %s", value)
 		return value
 	}
-	log.Printf("Using default REAL_FFPROBE path: /usr/bin/ffprobe.real")
 	return "/usr/bin/ffprobe.real" // Default value
 }()
 
@@ -27,11 +25,13 @@ var REAL_FFPROBE = func() string {
 func init() {
 	logFile, err := os.OpenFile("/tmp/ffprobe-shim.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
+		// Write directly to stderr only if logging cannot be initialized
 		fmt.Fprintf(os.Stderr, "Failed to open log file: %v\n", err)
 		os.Exit(1)
 	}
 	log.SetOutput(logFile)
 	log.Println("Logging initialized")
+	log.Printf("Using REAL_FFPROBE path: %s", REAL_FFPROBE)
 }
 
 // Pattern and template types
@@ -429,7 +429,7 @@ func detectFileTemplate(filepath string) string {
 }
 
 // Generate a static ffprobe response based on template and enhance with PTN data
-func generateResponse(filepath, templateName string, analyzeDuration bool) *FFProbeResponse {
+func generateResponse(filepath, templateName string, analyzeDuration bool) interface{} {
 	template, exists := TEMPLATES[templateName]
 	if !exists {
 		return nil
@@ -454,48 +454,45 @@ func generateResponse(filepath, templateName string, analyzeDuration bool) *FFPr
 	// Enhance response with PTN data
 	enhanceResponseWithPTN(&response, filepath)
 
-	// Add chapters and detailed metadata if analyzeDuration is true
+	// If analyzeDuration is true, return a plain text response
 	if analyzeDuration {
-		log.Println("Adding chapters and detailed metadata for -analyzeduration")
-		response.Format.Metadata = map[string]string{
-			"encoder":        "libebml v1.3.9 + libmatroska v1.5.2",
-			"creation_time":  "2020-04-03T04:08:26.000000Z",
-		}
+		log.Println("Generating plain text response for -analyzeduration")
+		return generatePlainTextResponse(response)
+	}
 
-		// Example chapters
-		response.Chapters = []Chapter{
-			{Index: 0, Start: 0.0, End: 193.693, Title: "1"},
-			{Index: 1, Start: 193.693, End: 411.994, Title: "2"},
-			// Add more chapters as needed
-		}
+	return &response
+}
 
-		// Add detailed stream metadata
-		for i := range response.Streams {
-			if response.Streams[i].CodecType == "video" {
-				response.Streams[i].Metadata = map[string]string{
-					"BPS-eng":                  "5212998",
-					"DURATION-eng":             "01:40:56.223000000",
-					"NUMBER_OF_FRAMES-eng":     "145204",
-					"NUMBER_OF_BYTES-eng":      "3946385162",
-					"_STATISTICS_WRITING_APP":  "mkvmerge v35.0.0 ('All The Love In The World') 64-bit",
-					"_STATISTICS_WRITING_DATE": "2020-04-03 04:08:26",
-					"_STATISTICS_TAGS":         "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES",
-				}
-			} else if response.Streams[i].CodecType == "audio" {
-				response.Streams[i].Metadata = map[string]string{
-					"BPS-eng":                  "384000",
-					"DURATION-eng":             "01:40:56.256000000",
-					"NUMBER_OF_FRAMES-eng":     "189258",
-					"NUMBER_OF_BYTES-eng":      "290700288",
-					"_STATISTICS_WRITING_APP":  "mkvmerge v35.0.0 ('All The Love In The World') 64-bit",
-					"_STATISTICS_WRITING_DATE": "2020-04-03 04:08:26",
-					"_STATISTICS_TAGS":         "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES",
-				}
+func generatePlainTextResponse(response FFProbeResponse) string {
+	var builder strings.Builder
+
+	// Add format information
+	builder.WriteString(fmt.Sprintf("Input #0, %s, from '%s':\n", response.Format.FormatName, response.Format.Filename))
+	builder.WriteString(fmt.Sprintf("  Duration: %s, bitrate: %s\n", response.Format.Duration, response.Format.BitRate))
+
+	// Add chapters
+	if len(response.Chapters) > 0 {
+		builder.WriteString("  Chapters:\n")
+		for _, chapter := range response.Chapters {
+			builder.WriteString(fmt.Sprintf("    Chapter #%d: start %.6f, end %.6f\n", chapter.Index, chapter.Start, chapter.End))
+			if chapter.Title != "" {
+				builder.WriteString(fmt.Sprintf("      Metadata:\n        title: %s\n", chapter.Title))
 			}
 		}
 	}
 
-	return &response
+	// Add streams
+	for _, stream := range response.Streams {
+		if stream.CodecType == "video" {
+			builder.WriteString(fmt.Sprintf("  Stream #%d: Video: %s, %dx%d, %s\n",
+				stream.Index, stream.CodecName, stream.Width, stream.Height, stream.BitRate))
+		} else if stream.CodecType == "audio" {
+			builder.WriteString(fmt.Sprintf("  Stream #%d: Audio: %s, %d channels, %s Hz, %s\n",
+				stream.Index, stream.CodecName, stream.Channels, stream.SampleRate, stream.BitRate))
+		}
+	}
+
+	return builder.String()
 }
 
 // Parse ffprobe arguments to extract the file path
@@ -525,15 +522,24 @@ func parseFFProbeArgs() (string, string, bool) {
 
 		// Look for input file (not starting with dash and exists on filesystem)
 		if !strings.HasPrefix(arg, "-") {
-			if fileInfo, err := os.Stat(arg); err == nil && !fileInfo.IsDir() {
-				inputFile = arg
-				log.Printf("Detected input file: %s", inputFile)
+			log.Printf("Checking if argument is a file: %s", arg)
+			if fileInfo, err := os.Stat(arg); err == nil {
+				if !fileInfo.IsDir() {
+					inputFile = arg
+					log.Printf("Detected input file: %s", inputFile)
+				} else {
+					log.Printf("Argument is a directory, not a file: %s", arg)
+				}
+			} else {
+				log.Printf("File does not exist or cannot be accessed: %s, error: %v", arg, err)
 			}
 		}
 	}
 
 	if inputFile == "" {
-		log.Println("No input file detected")
+		log.Println("No valid input file detected. Please provide a valid file.")
+		fmt.Fprintln(os.Stderr, "Error: No valid input file detected. Please provide a valid file.")
+		os.Exit(1)
 	}
 	return inputFile, formatType, analyzeDuration
 }
@@ -599,8 +605,12 @@ func main() {
 		return
 	}
 
-	// Output response in requested format
-	if formatType == "json" {
+	// Output response
+	if analyzeDuration {
+		// Plain text response for -analyzeduration
+		fmt.Print(response.(string)) // Cast response to string and print
+	} else if formatType == "json" {
+		// JSON response
 		responseJSON, err := json.MarshalIndent(response, "", "    ")
 		if err != nil {
 			log.Printf("Error encoding response to JSON: %v", err)
@@ -609,7 +619,7 @@ func main() {
 		}
 		fmt.Print(string(responseJSON)) // Only JSON is printed to stdout
 	} else {
-		// If we don't support the requested format, fall back
+		// Unsupported format
 		log.Printf("Unsupported format type: %s", formatType)
 		fallbackToRealFFProbe()
 	}
