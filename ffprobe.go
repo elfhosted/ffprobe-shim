@@ -503,6 +503,13 @@ func fallbackToRealFFProbe() {
 }
 
 func main() {
+	// Check if the shim should be used
+	if _, useShim := os.LookupEnv("USE_FFPROBE_SHIM"); !useShim {
+		log.Println("USE_FFPROBE_SHIM not set. Passing through to real ffprobe.")
+		fallbackToRealFFProbe()
+		return
+	}
+
 	log.Printf("FFProbe shim called with args: %s", strings.Join(os.Args, " "))
 
 	inputFile, formatType := parseFFProbeArgs()
