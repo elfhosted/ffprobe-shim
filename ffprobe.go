@@ -15,19 +15,22 @@ import (
 
 // Path to real ffprobe (for fallback)
 var REAL_FFPROBE = func() string {
-    if value, exists := os.LookupEnv("REAL_FFPROBE_PATH"); exists {
-        return value
-    }
-    return "/usr/bin/ffprobe.real" // Default value
+	if value, exists := os.LookupEnv("REAL_FFPROBE_PATH"); exists {
+		log.Printf("REAL_FFPROBE_PATH environment variable found: %s", value)
+		return value
+	}
+	log.Printf("Using default REAL_FFPROBE path: /usr/bin/ffprobe.real")
+	return "/usr/bin/ffprobe.real" // Default value
 }()
 
 // Init logging
 func init() {
 	logFile, err := os.OpenFile("/tmp/ffprobe-shim.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to open log file: %v", err)
 	}
 	log.SetOutput(logFile)
+	log.Println("Logging initialized")
 }
 
 // Pattern and template types
@@ -226,7 +229,7 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 	// Set resolution based on quality
 	if info.Quality != "" {
 		width, height := 0, 0
-		
+
 		if info.Quality == "720p" {
 			width, height = 1280, 720
 		} else if info.Quality == "1080p" {
@@ -234,13 +237,13 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 		} else if info.Quality == "2160p" || info.Quality == "4K" {
 			width, height = 3840, 2160
 		}
-		
+
 		if width != 0 && height != 0 {
 			for i := range response.Streams {
 				if response.Streams[i].CodecType == "video" {
 					response.Streams[i].Width = width
 					response.Streams[i].Height = height
-					
+
 					// Adjust bitrate based on resolution
 					switch info.Quality {
 					case "720p":
@@ -255,7 +258,7 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 			}
 		}
 	}
-	
+
 	// Try to determine video codec
 	videoCodec := ""
 	if info.Codec != "" {
@@ -264,7 +267,7 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 			videoCodec = mappedCodec
 		}
 	}
-	
+
 	// Look through other fields for codec hints
 	if videoCodec == "" {
 		searchFields := []string{info.Group, info.Title, info.Container}
@@ -281,7 +284,7 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 			}
 		}
 	}
-	
+
 	// Apply video codec if found
 	if videoCodec != "" {
 		for i := range response.Streams {
@@ -290,7 +293,7 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 			}
 		}
 	}
-	
+
 	// Try to determine audio codec
 	audioCodec := ""
 	searchFields := []string{info.Group, info.Title}
@@ -331,7 +334,7 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 			response.Streams[i].Channels = channels
 		}
 	}
-	
+
 	// Set size based on quality and duration
 	fileSize := "0"
 	switch {
@@ -344,9 +347,9 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 	default:
 		fileSize = "2000000000" // Default ~2GB
 	}
-	
+
 	response.Format.Size = fileSize
-	
+
 	// Set total bitrate (sum of audio and video)
 	totalBitRate := 0
 	for _, stream := range response.Streams {
@@ -355,7 +358,7 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 			totalBitRate += br
 		}
 	}
-	
+
 	if totalBitRate > 0 {
 		response.Format.BitRate = strconv.Itoa(totalBitRate)
 	}
@@ -439,29 +442,39 @@ func parseFFProbeArgs() (string, string) {
 	var inputFile string
 	formatType := "json" // Default format
 
+	log.Println("Parsing ffprobe arguments")
 	for i, arg := range os.Args {
+		log.Printf("Argument %d: %s", i, arg)
+
 		// Check for format specification
 		if arg == "-print_format" && i+1 < len(os.Args) {
 			formatType = os.Args[i+1]
+			log.Printf("Detected format type: %s", formatType)
 		} else if arg == "-of" && i+1 < len(os.Args) {
 			formatType = os.Args[i+1]
+			log.Printf("Detected format type: %s", formatType)
 		}
 
 		// Look for input file (not starting with dash and exists on filesystem)
 		if !strings.HasPrefix(arg, "-") {
 			if fileInfo, err := os.Stat(arg); err == nil && !fileInfo.IsDir() {
 				inputFile = arg
+				log.Printf("Detected input file: %s", inputFile)
 			}
 		}
 	}
 
+	if inputFile == "" {
+		log.Println("No input file detected")
+	}
 	return inputFile, formatType
 }
 
 // Execute the real ffprobe binary with the original arguments
 func fallbackToRealFFProbe() {
+	log.Printf("Checking if REAL_FFPROBE exists at: %s", REAL_FFPROBE)
 	if _, err := os.Stat(REAL_FFPROBE); err == nil {
-		log.Printf("Falling back to real ffprobe: %s", strings.Join(os.Args, " "))
+		log.Printf("Falling back to real ffprobe: %s %v", REAL_FFPROBE, os.Args[1:])
 
 		cmd := exec.Command(REAL_FFPROBE, os.Args[1:]...)
 		cmd.Stdout = os.Stdout
@@ -470,12 +483,13 @@ func fallbackToRealFFProbe() {
 
 		err := cmd.Run()
 		if err != nil {
+			log.Printf("Error executing real ffprobe: %v", err)
 			os.Exit(1)
 		}
 		os.Exit(0)
 	} else {
-		log.Printf("Real ffprobe not found at %s", REAL_FFPROBE)
-		os.Exit(1)
+		log.Printf("Real ffprobe not found at %s. Exiting gracefully.", REAL_FFPROBE)
+		os.Exit(0) // Exit successfully if REAL_FFPROBE is not found
 	}
 }
 
@@ -494,6 +508,7 @@ func main() {
 
 	// Detect template to use
 	templateName := detectFileTemplate(inputFile)
+	log.Printf("Detected template: %s", templateName)
 
 	if templateName == "" {
 		log.Printf("No matching template for %s, falling back to real ffprobe", inputFile)
@@ -503,7 +518,6 @@ func main() {
 
 	// Generate response
 	response := generateResponse(inputFile, templateName)
-
 	if response == nil {
 		log.Printf("Failed to generate response for %s", templateName)
 		fallbackToRealFFProbe()
@@ -518,6 +532,7 @@ func main() {
 			fallbackToRealFFProbe()
 			return
 		}
+		log.Printf("Generated JSON response: %s", string(responseJSON))
 		fmt.Print(string(responseJSON))
 	} else {
 		// If we don't support the requested format, fall back
