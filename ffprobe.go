@@ -112,7 +112,7 @@ var TEMPLATES = map[string]FFProbeResponse{
 			NbStreams:      2,
 			FormatName:     "matroska,webm",
 			FormatLongName: "Matroska / WebM",
-			Duration:       "45.000000",
+			Duration:       "2700.000000",
 			Size:           "1500000000",
 			BitRate:        "5384000",
 		},
@@ -214,23 +214,23 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 				}
 			}
 		} else {
-			response.Format.Duration = "45.000000"
+			response.Format.Duration = "2700.000000"
 			for i := range response.Streams {
 				if response.Streams[i].CodecType == "video" {
-					response.Streams[i].Duration = "45.000000"
+					response.Streams[i].Duration = "2700.000000"
 				} else if response.Streams[i].CodecType == "audio" {
-					response.Streams[i].Duration = "45.000000" // Set audio duration
+					response.Streams[i].Duration = "2700.000000" // Set audio duration
 				}
 			}
 		}
 	} else {
 		// Movie - use typical movie length
-		response.Format.Duration = "120.000000"
+		response.Format.Duration = "7200.000000"
 		for i := range response.Streams {
 			if response.Streams[i].CodecType == "video" {
-				response.Streams[i].Duration = "120.000000"
+				response.Streams[i].Duration = "7200.000000"
 			} else if response.Streams[i].CodecType == "audio" {
-				response.Streams[i].Duration = "120.000000" // Set audio duration
+				response.Streams[i].Duration = "7200.000000" // Set audio duration
 			}
 		}
 	}
