@@ -492,6 +492,10 @@ func generateResponse(filepath, templateName string, analyzeDuration bool) inter
 	// Fill in filename
 	response.Format.Filename = filepath
 
+	// Extract the filename (without the path) and set it as the title
+	filename := filepath[strings.LastIndex(filepath, "/")+1:]
+	response.Format.Tags["title"] = filename
+
 	// Enhance response with PTN data
 	enhanceResponseWithPTN(&response, filepath)
 
@@ -529,14 +533,11 @@ func generateResponse(filepath, templateName string, analyzeDuration bool) inter
 	}
 
 	// Add additional fields for format
-	response.Format.Tags = map[string]string{
-		"major_brand":       "mp42",
-		"minor_version":     "0",
-		"compatible_brands": "mp42isomavc1",
-		"creation_time":     "2024-10-22T13:48:39.000000Z",
-		"title":             "My.Freaky.Family.2024.1080p.WebDL.X264.Will1869",
-		"encoder":           "DVDFab 12.0.7.0",
-	}
+	response.Format.Tags["major_brand"] = "mp42"
+	response.Format.Tags["minor_version"] = "0"
+	response.Format.Tags["compatible_brands"] = "mp42isomavc1"
+	response.Format.Tags["creation_time"] = "2024-10-22T13:48:39.000000Z"
+	response.Format.Tags["encoder"] = "DVDFab 12.0.7.0"
 
 	return &response
 }
@@ -556,9 +557,8 @@ func formatDuration(duration string) string {
 }
 
 // Parse ffprobe arguments to extract the file path
-func parseFFProbeArgs() (string, string, bool, bool) {
+func parseFFProbeArgs() (string, bool, bool) {
 	var inputFile string
-	formatType := "json" // Default format
 	analyzeDuration := false
 	showPixelFormats := false
 
@@ -566,22 +566,13 @@ func parseFFProbeArgs() (string, string, bool, bool) {
 	for i, arg := range os.Args {
 		log.Printf("Argument %d: %s", i, arg)
 
-		// Check for format specification
-		if arg == "-print_format" && i+1 < len(os.Args) {
-			formatType = os.Args[i+1]
-			log.Printf("Detected format type: %s", formatType)
-		} else if arg == "-of" && i+1 < len(os.Args) {
-			formatType = os.Args[i+1]
-			log.Printf("Detected format type: %s", formatType)
-		}
-
-		// Detect -analyzeduration flag
+		 // Detect -analyzeduration flag
 		if arg == "-analyzeduration" {
 			analyzeDuration = true
 			log.Println("Detected -analyzeduration flag")
 		}
 
-		 // Detect -show_pixel_formats flag
+		// Detect -show_pixel_formats flag
 		if arg == "-show_pixel_formats" {
 			showPixelFormats = true
 			log.Println("Detected -show_pixel_formats flag")
@@ -603,7 +594,7 @@ func parseFFProbeArgs() (string, string, bool, bool) {
 		}
 	}
 
-	return inputFile, formatType, analyzeDuration, showPixelFormats
+	return inputFile, analyzeDuration, showPixelFormats
 }
 
 // Execute the real ffprobe binary with the original arguments
@@ -639,7 +630,7 @@ func main() {
 
     log.Printf("FFProbe shim called with args: %s", strings.Join(os.Args, " "))
 
-    inputFile, formatType, analyzeDuration, showPixelFormats := parseFFProbeArgs()
+    inputFile, analyzeDuration, showPixelFormats := parseFFProbeArgs()
 
     // Pass -show_pixel_formats directly to the real ffprobe
     if showPixelFormats {
@@ -674,28 +665,12 @@ func main() {
         return
     }
 
-    // Output response
-    if analyzeDuration {
-        // JSON response for -analyzeduration
-        responseJSON, err := json.MarshalIndent(response, "", "    ")
-        if err != nil {
-            log.Printf("Error encoding response to JSON: %v", err)
-            fallbackToRealFFProbe()
-            return
-        }
-        fmt.Print(string(responseJSON)) // Only JSON is printed to stdout
-    } else if formatType == "json" {
-        // JSON response
-        responseJSON, err := json.MarshalIndent(response, "", "    ")
-        if err != nil {
-            log.Printf("Error encoding response to JSON: %v", err)
-            fallbackToRealFFProbe()
-            return
-        }
-        fmt.Print(string(responseJSON)) // Only JSON is printed to stdout
-    } else {
-        // Unsupported format
-        log.Printf("Unsupported format type: %s", formatType)
+    // Always output JSON
+    responseJSON, err := json.MarshalIndent(response, "", "    ")
+    if err != nil {
+        log.Printf("Error encoding response to JSON: %v", err)
         fallbackToRealFFProbe()
+        return
     }
+    fmt.Print(string(responseJSON)) // Only JSON is printed to stdout
 }
