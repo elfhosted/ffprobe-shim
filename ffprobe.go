@@ -474,7 +474,7 @@ func detectFileTemplate(filepath string) string {
 // Generate a static ffprobe response based on template and enhance with PTN data
 func generateResponse(filepath, templateName string, analyzeDuration bool) interface{} {
 	template, exists := TEMPLATES[templateName]
-	if !exists {
+	if (!exists) {
 		return nil
 	}
 
@@ -493,6 +493,11 @@ func generateResponse(filepath, templateName string, analyzeDuration bool) inter
 
 	// Fill in filename
 	response.Format.Filename = filepath
+
+	// Ensure the Tags map is initialized
+	if response.Format.Tags == nil {
+		response.Format.Tags = make(map[string]string)
+	}
 
 	// Extract the filename (without the path) and set it as the title
 	filename := filepath[strings.LastIndex(filepath, "/")+1:]
