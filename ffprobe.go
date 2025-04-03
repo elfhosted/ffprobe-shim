@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	ptn "github.com/middelink/go-parse-torrent-name"
 )
@@ -570,10 +571,12 @@ func parseFFProbeArgs() (string, bool, bool) {
 	showPixelFormats := false
 
 	log.Println("Parsing ffprobe arguments")
+
+	// Detect flags
 	for i, arg := range os.Args {
 		log.Printf("Argument %d: %s", i, arg)
 
-		 // Detect -analyzeduration flag
+		// Detect -analyzeduration flag
 		if arg == "-analyzeduration" {
 			analyzeDuration = true
 			log.Println("Detected -analyzeduration flag")
@@ -584,24 +587,33 @@ func parseFFProbeArgs() (string, bool, bool) {
 			showPixelFormats = true
 			log.Println("Detected -show_pixel_formats flag")
 		}
-
-		// Look for input file (not starting with dash and exists on filesystem)
-		if !strings.HasPrefix(arg, "-") {
-			log.Printf("Checking if argument is a file: %s", arg)
-			if fileInfo, err := os.Stat(arg); err == nil {
-				if !fileInfo.IsDir() {
-					inputFile = arg
-					log.Printf("Detected input file: %s", inputFile)
-				} else {
-					log.Printf("Argument is a directory, not a file: %s", arg)
-				}
-			} else {
-				log.Printf("File does not exist or cannot be accessed: %s, error: %v", arg, err)
-			}
-		}
 	}
 
-	return inputFile, analyzeDuration, showPixelFormats
+	// Treat the last argument as the input file
+	if len(os.Args) > 1 {
+		inputFile = os.Args[len(os.Args)-1]
+		log.Printf("Last argument is treated as the input file: %s", inputFile)
+
+		// Wait up to 30 seconds for the file to become available
+		for i := 0; i < 30; i++ {
+			if fileInfo, err := os.Stat(inputFile); err == nil {
+				if !fileInfo.IsDir() {
+					log.Printf("Detected input file: %s", inputFile)
+					return inputFile, analyzeDuration, showPixelFormats
+				} else {
+					log.Printf("Argument is a directory, not a file: %s", inputFile)
+					break
+				}
+			} else {
+				log.Printf("File does not exist or cannot be accessed: %s, error: %v", inputFile, err)
+			}
+			time.Sleep(1 * time.Second)
+		}
+
+		log.Printf("File %s did not become available within 30 seconds", inputFile)
+	}
+
+	return "", analyzeDuration, showPixelFormats
 }
 
 // Execute the real ffprobe binary with the original arguments
