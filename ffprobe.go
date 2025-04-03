@@ -654,8 +654,14 @@ func main() {
 
     // Output response
     if analyzeDuration {
-        // Plain text response for -analyzeduration
-        fmt.Print(response.(string)) // Cast response to string and print
+        // JSON response for -analyzeduration
+        responseJSON, err := json.MarshalIndent(response, "", "    ")
+        if err != nil {
+            log.Printf("Error encoding response to JSON: %v", err)
+            fallbackToRealFFProbe()
+            return
+        }
+        fmt.Print(string(responseJSON)) // Only JSON is printed to stdout
     } else if formatType == "json" {
         // JSON response
         responseJSON, err := json.MarshalIndent(response, "", "    ")
