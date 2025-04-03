@@ -42,28 +42,63 @@ type PatternInfo struct {
 
 // Stream represents an ffprobe media stream
 type Stream struct {
-	Index      int               `json:"index"`
-	CodecName  string            `json:"codec_name"`
-	CodecType  string            `json:"codec_type"`
-	Width      int               `json:"width,omitempty"`
-	Height     int               `json:"height,omitempty"`
-	Duration   string            `json:"duration"`
-	BitRate    string            `json:"bit_rate"`
-	Channels   int               `json:"channels,omitempty"`
-	SampleRate string            `json:"sample_rate,omitempty"`
-	Metadata   map[string]string `json:"metadata,omitempty"`
+	Index              int               `json:"index"`
+	CodecName          string            `json:"codec_name"`
+	CodecLongName      string            `json:"codec_long_name,omitempty"`
+	Profile            string            `json:"profile,omitempty"`
+	CodecType          string            `json:"codec_type"`
+	CodecTagString     string            `json:"codec_tag_string,omitempty"`
+	CodecTag           string            `json:"codec_tag,omitempty"`
+	Width              int               `json:"width,omitempty"`
+	Height             int               `json:"height,omitempty"`
+	CodedWidth         int               `json:"coded_width,omitempty"`
+	CodedHeight        int               `json:"coded_height,omitempty"`
+	ClosedCaptions     int               `json:"closed_captions,omitempty"`
+	FilmGrain          int               `json:"film_grain,omitempty"`
+	HasBFrames         int               `json:"has_b_frames,omitempty"`
+	SampleAspectRatio  string            `json:"sample_aspect_ratio,omitempty"`
+	DisplayAspectRatio string            `json:"display_aspect_ratio,omitempty"`
+	PixFmt             string            `json:"pix_fmt,omitempty"`
+	Level              int               `json:"level,omitempty"`
+	ColorRange         string            `json:"color_range,omitempty"`
+	ColorSpace         string            `json:"color_space,omitempty"`
+	ColorTransfer      string            `json:"color_transfer,omitempty"`
+	ColorPrimaries     string            `json:"color_primaries,omitempty"`
+	ChromaLocation     string            `json:"chroma_location,omitempty"`
+	FieldOrder         string            `json:"field_order,omitempty"`
+	Refs               int               `json:"refs,omitempty"`
+	IsAVC              string            `json:"is_avc,omitempty"`
+	NalLengthSize      string            `json:"nal_length_size,omitempty"`
+	ID                 string            `json:"id,omitempty"`
+	RFrameRate         string            `json:"r_frame_rate,omitempty"`
+	AvgFrameRate       string            `json:"avg_frame_rate,omitempty"`
+	TimeBase           string            `json:"time_base,omitempty"`
+	StartPts           int64             `json:"start_pts,omitempty"`
+	StartTime          string            `json:"start_time,omitempty"`
+	DurationTS         int64             `json:"duration_ts,omitempty"`
+	Duration           string            `json:"duration,omitempty"`
+	BitRate            string            `json:"bit_rate,omitempty"`
+	BitsPerRawSample   string            `json:"bits_per_raw_sample,omitempty"`
+	NbFrames           string            `json:"nb_frames,omitempty"`
+	ExtradataSize      int               `json:"extradata_size,omitempty"`
+	Disposition        map[string]int    `json:"disposition,omitempty"`
+	Tags               map[string]string `json:"tags,omitempty"`
+	SideDataList       []SideData        `json:"side_data_list,omitempty"`
 }
 
 // Format represents ffprobe format information
 type Format struct {
 	Filename       string            `json:"filename"`
 	NbStreams      int               `json:"nb_streams"`
+	NbPrograms     int               `json:"nb_programs,omitempty"`
 	FormatName     string            `json:"format_name"`
 	FormatLongName string            `json:"format_long_name"`
-	Duration       string            `json:"duration"`
-	Size           string            `json:"size"`
-	BitRate        string            `json:"bit_rate"`
-	Metadata       map[string]string `json:"metadata,omitempty"`
+	StartTime      string            `json:"start_time,omitempty"`
+	Duration       string            `json:"duration,omitempty"`
+	Size           string            `json:"size,omitempty"`
+	BitRate        string            `json:"bit_rate,omitempty"`
+	ProbeScore     int               `json:"probe_score,omitempty"`
+	Tags           map[string]string `json:"tags,omitempty"`
 }
 
 // Chapter represents a media chapter
@@ -72,6 +107,12 @@ type Chapter struct {
 	Start float64 `json:"start"`
 	End   float64 `json:"end"`
 	Title string  `json:"title"`
+}
+
+// SideData represents side data information
+type SideData struct {
+	SideDataType string `json:"side_data_type"`
+	ServiceType  int    `json:"service_type,omitempty"`
 }
 
 // FFProbeResponse represents the full ffprobe output structure
@@ -431,7 +472,7 @@ func detectFileTemplate(filepath string) string {
 // Generate a static ffprobe response based on template and enhance with PTN data
 func generateResponse(filepath, templateName string, analyzeDuration bool) interface{} {
 	template, exists := TEMPLATES[templateName]
-	if (!exists) {
+	if !exists {
 		return nil
 	}
 
@@ -454,10 +495,47 @@ func generateResponse(filepath, templateName string, analyzeDuration bool) inter
 	// Enhance response with PTN data
 	enhanceResponseWithPTN(&response, filepath)
 
-	// If analyzeDuration is true, return a plain text response
-	if analyzeDuration {
-		log.Println("Generating plain text response for -analyzeduration")
-		return generatePlainTextResponse(response)
+	// Add additional fields for streams
+	for i := range response.Streams {
+		if response.Streams[i].CodecType == "video" {
+			response.Streams[i].CodecLongName = "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10"
+			response.Streams[i].Profile = "Main"
+			response.Streams[i].CodecTagString = "avc1"
+			response.Streams[i].CodecTag = "0x31637661"
+			response.Streams[i].PixFmt = "yuv420p"
+			response.Streams[i].ColorRange = "tv"
+			response.Streams[i].ColorSpace = "bt709"
+			response.Streams[i].ColorTransfer = "bt709"
+			response.Streams[i].ColorPrimaries = "bt709"
+			response.Streams[i].ChromaLocation = "left"
+			response.Streams[i].FieldOrder = "progressive"
+			response.Streams[i].RFrameRate = "24000/1001"
+			response.Streams[i].AvgFrameRate = "24000/1001"
+			response.Streams[i].TimeBase = "1/24000"
+			response.Streams[i].StartTime = "0:00:00.000000"
+			response.Streams[i].Duration = formatDuration(response.Streams[i].Duration)
+			response.Streams[i].Disposition = map[string]int{
+				"default": 1,
+				"dub":     0,
+				"original": 0,
+				// Add other disposition fields as needed
+			}
+			response.Streams[i].Tags = map[string]string{
+				"creation_time": "2024-10-22T13:48:39.000000Z",
+				"language":      "und",
+				"encoder":       "JVT/AVC Coding",
+			}
+		}
+	}
+
+	// Add additional fields for format
+	response.Format.Tags = map[string]string{
+		"major_brand":       "mp42",
+		"minor_version":     "0",
+		"compatible_brands": "mp42isomavc1",
+		"creation_time":     "2024-10-22T13:48:39.000000Z",
+		"title":             "My.Freaky.Family.2024.1080p.WebDL.X264.Will1869",
+		"encoder":           "DVDFab 12.0.7.0",
 	}
 
 	return &response
@@ -472,65 +550,9 @@ func formatDuration(duration string) string {
 
 	hours := int(seconds) / 3600
 	minutes := (int(seconds) % 3600) / 60
-	remainingSeconds := int(seconds) % 60
+	secs := seconds - float64(hours*3600+minutes*60)
 
-	return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, remainingSeconds)
-}
-
-func generatePlainTextResponse(response FFProbeResponse) string {
-    var builder strings.Builder
-
-    // Add format information
-    builder.WriteString(fmt.Sprintf("Input #0, %s, from '%s':\n", response.Format.FormatName, response.Format.Filename))
-    if response.Format.Metadata != nil {
-        builder.WriteString("  Metadata:\n")
-        for key, value := range response.Format.Metadata {
-            builder.WriteString(fmt.Sprintf("    %s: %s\n", key, value))
-        }
-    }
-
-    // Format the duration and bitrate
-    formattedDuration := formatDuration(response.Format.Duration)
-    builder.WriteString(fmt.Sprintf("  Duration: %s, start: 0.000000, bitrate: %s kb/s\n", formattedDuration, response.Format.BitRate))
-
-    // Add streams
-    for _, stream := range response.Streams {
-        if stream.CodecType == "video" {
-            builder.WriteString(fmt.Sprintf("  Stream #%d: Video: %s (%s), %s, %dx%d, %s, %s fps\n",
-                stream.Index, stream.CodecName, stream.CodecName, "yuv420p(tv, bt709, progressive)", stream.Width, stream.Height, stream.BitRate, "23.98"))
-            if stream.Metadata != nil {
-                builder.WriteString("    Metadata:\n")
-                for key, value := range stream.Metadata {
-                    builder.WriteString(fmt.Sprintf("      %s: %s\n", key, value))
-                }
-            }
-        } else if stream.CodecType == "audio" {
-            builder.WriteString(fmt.Sprintf("  Stream #%d: Audio: %s (%s), %s Hz, %d channels, %s\n",
-                stream.Index, stream.CodecName, stream.CodecName, stream.SampleRate, stream.Channels, stream.BitRate))
-            if stream.Metadata != nil {
-                builder.WriteString("    Metadata:\n")
-                for key, value := range stream.Metadata {
-                    builder.WriteString(fmt.Sprintf("      %s: %s\n", key, value))
-                }
-            }
-            // Add side data if available
-            builder.WriteString("    Side data:\n")
-            builder.WriteString("      audio service type: main\n")
-        } else if stream.CodecType == "subtitle" {
-            builder.WriteString(fmt.Sprintf("  Stream #%d: Subtitle: %s (%s), %s\n",
-                stream.Index, stream.CodecName, stream.CodecName, stream.BitRate))
-            if stream.Metadata != nil {
-                builder.WriteString("    Metadata:\n")
-                for key, value := range stream.Metadata {
-                    builder.WriteString(fmt.Sprintf("      %s: %s\n", key, value))
-                }
-            }
-        } else if stream.CodecType == "attachment" {
-            builder.WriteString(fmt.Sprintf("  Stream #%d: Video: %s, none\n", stream.Index, stream.CodecName))
-        }
-    }
-
-    return builder.String()
+	return fmt.Sprintf("%d:%02d:%06.3f", hours, minutes, secs)
 }
 
 // Parse ffprobe arguments to extract the file path
