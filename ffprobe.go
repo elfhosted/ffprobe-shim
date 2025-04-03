@@ -463,74 +463,74 @@ func generateResponse(filepath, templateName string, analyzeDuration bool) inter
 	return &response
 }
 
-func generatePlainTextResponse(response FFProbeResponse) string {
-	var builder strings.Builder
-
-	// Add format information
-	builder.WriteString(fmt.Sprintf("Input #0, %s, from '%s':\n", response.Format.FormatName, response.Format.Filename))
-	if response.Format.Metadata != nil {
-		builder.WriteString("  Metadata:\n")
-		for key, value := range response.Format.Metadata {
-			builder.WriteString(fmt.Sprintf("    %s: %s\n", key, value))
-		}
-	}
-	builder.WriteString(fmt.Sprintf("  Duration: %s, start: 0.000000, bitrate: %s\n", response.Format.Duration, response.Format.BitRate))
-
-	// Add streams
-	for _, stream := range response.Streams {
-		if stream.CodecType == "video" {
-			builder.WriteString(fmt.Sprintf("  Stream #%d: Video: %s (%s), %s, %dx%d, %s, %s fps\n",
-				stream.Index, stream.CodecName, stream.CodecName, "yuv420p(tv, bt709, progressive)", stream.Width, stream.Height, stream.BitRate, "23.98"))
-			if stream.Metadata != nil {
-				builder.WriteString("    Metadata:\n")
-				for key, value := range stream.Metadata {
-					builder.WriteString(fmt.Sprintf("      %s: %s\n", key, value))
-				}
-			}
-		} else if stream.CodecType == "audio" {
-			builder.WriteString(fmt.Sprintf("  Stream #%d: Audio: %s (%s), %s Hz, %d channels, %s\n",
-				stream.Index, stream.CodecName, stream.CodecName, stream.SampleRate, stream.Channels, stream.BitRate))
-			if stream.Metadata != nil {
-				builder.WriteString("    Metadata:\n")
-				for key, value := range stream.Metadata {
-					builder.WriteString(fmt.Sprintf("      %s: %s\n", key, value))
-				}
-			}
-			// Add side data if available
-			builder.WriteString("    Side data:\n")
-			builder.WriteString("      audio service type: main\n")
-		} else if stream.CodecType == "subtitle" {
-			builder.WriteString(fmt.Sprintf("  Stream #%d: Subtitle: %s (%s), %s\n",
-				stream.Index, stream.CodecName, stream.CodecName, stream.BitRate))
-			if stream.Metadata != nil {
-				builder.WriteString("    Metadata:\n")
-				for key, value := range stream.Metadata {
-					builder.WriteString(fmt.Sprintf("      %s: %s\n", key, value))
-				}
-			}
-		} else if stream.CodecType == "attachment" {
-			builder.WriteString(fmt.Sprintf("  Stream #%d: Video: %s, none\n", stream.Index, stream.CodecName))
-		}
+func formatDuration(duration string) string {
+	seconds, err := strconv.ParseFloat(duration, 64)
+	if err != nil {
+		log.Printf("Error parsing duration: %v", err)
+		return duration
 	}
 
-	return builder.String()
+	hours := int(seconds) / 3600
+	minutes := (int(seconds) % 3600) / 60
+	remainingSeconds := int(seconds) % 60
+
+	return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, remainingSeconds)
 }
 
-func generatePixelFormatsResponse() string {
-    return `Pixel formats:
-I.... = Supported Input  for conversion
-.O... = Supported Output for conversion
-..H.. = Hardware Accelerated format
-...P. = Paletted format
-....B = Bitstream format
-FLAGS NAME            NB_COMPONENTS BITS_PER_PIXEL
------
-IO... yuv420p                3            12
-IO... yuv422p                3            16
-IO... yuv444p                3            24
-IO... nv12                   3            12
-IO... yuvj420p               3            12
-`
+func generatePlainTextResponse(response FFProbeResponse) string {
+    var builder strings.Builder
+
+    // Add format information
+    builder.WriteString(fmt.Sprintf("Input #0, %s, from '%s':\n", response.Format.FormatName, response.Format.Filename))
+    if response.Format.Metadata != nil {
+        builder.WriteString("  Metadata:\n")
+        for key, value := range response.Format.Metadata {
+            builder.WriteString(fmt.Sprintf("    %s: %s\n", key, value))
+        }
+    }
+
+    // Format the duration and bitrate
+    formattedDuration := formatDuration(response.Format.Duration)
+    builder.WriteString(fmt.Sprintf("  Duration: %s, start: 0.000000, bitrate: %s kb/s\n", formattedDuration, response.Format.BitRate))
+
+    // Add streams
+    for _, stream := range response.Streams {
+        if stream.CodecType == "video" {
+            builder.WriteString(fmt.Sprintf("  Stream #%d: Video: %s (%s), %s, %dx%d, %s, %s fps\n",
+                stream.Index, stream.CodecName, stream.CodecName, "yuv420p(tv, bt709, progressive)", stream.Width, stream.Height, stream.BitRate, "23.98"))
+            if stream.Metadata != nil {
+                builder.WriteString("    Metadata:\n")
+                for key, value := range stream.Metadata {
+                    builder.WriteString(fmt.Sprintf("      %s: %s\n", key, value))
+                }
+            }
+        } else if stream.CodecType == "audio" {
+            builder.WriteString(fmt.Sprintf("  Stream #%d: Audio: %s (%s), %s Hz, %d channels, %s\n",
+                stream.Index, stream.CodecName, stream.CodecName, stream.SampleRate, stream.Channels, stream.BitRate))
+            if stream.Metadata != nil {
+                builder.WriteString("    Metadata:\n")
+                for key, value := range stream.Metadata {
+                    builder.WriteString(fmt.Sprintf("      %s: %s\n", key, value))
+                }
+            }
+            // Add side data if available
+            builder.WriteString("    Side data:\n")
+            builder.WriteString("      audio service type: main\n")
+        } else if stream.CodecType == "subtitle" {
+            builder.WriteString(fmt.Sprintf("  Stream #%d: Subtitle: %s (%s), %s\n",
+                stream.Index, stream.CodecName, stream.CodecName, stream.BitRate))
+            if stream.Metadata != nil {
+                builder.WriteString("    Metadata:\n")
+                for key, value := range stream.Metadata {
+                    builder.WriteString(fmt.Sprintf("      %s: %s\n", key, value))
+                }
+            }
+        } else if stream.CodecType == "attachment" {
+            builder.WriteString(fmt.Sprintf("  Stream #%d: Video: %s, none\n", stream.Index, stream.CodecName))
+        }
+    }
+
+    return builder.String()
 }
 
 // Parse ffprobe arguments to extract the file path
@@ -608,65 +608,66 @@ func fallbackToRealFFProbe() {
 }
 
 func main() {
-	// Check if the shim should be used
-	if _, useShim := os.LookupEnv("USE_FFPROBE_SHIM"); !useShim {
-		log.Println("USE_FFPROBE_SHIM not set. Passing through to real ffprobe.")
-		fallbackToRealFFProbe()
-		return
-	}
+    // Check if the shim should be used
+    if _, useShim := os.LookupEnv("USE_FFPROBE_SHIM"); !useShim {
+        log.Println("USE_FFPROBE_SHIM not set. Passing through to real ffprobe.")
+        fallbackToRealFFProbe()
+        return
+    }
 
-	log.Printf("FFProbe shim called with args: %s", strings.Join(os.Args, " "))
+    log.Printf("FFProbe shim called with args: %s", strings.Join(os.Args, " "))
 
-	inputFile, formatType, analyzeDuration, showPixelFormats := parseFFProbeArgs()
+    inputFile, formatType, analyzeDuration, showPixelFormats := parseFFProbeArgs()
 
-	if showPixelFormats {
-		// Return pixel formats response
-		fmt.Print(generatePixelFormatsResponse())
-		return
-	}
+    // Pass -show_pixel_formats directly to the real ffprobe
+    if showPixelFormats {
+        log.Println("Detected -show_pixel_formats. Passing request to real ffprobe.")
+        fallbackToRealFFProbe()
+        return
+    }
 
-	if inputFile == "" {
-		log.Printf("No input file found, falling back to real ffprobe")
-		fallbackToRealFFProbe()
-		return
-	}
+    if inputFile == "" {
+        log.Printf("No input file found, falling back to real ffprobe")
+        fallbackToRealFFProbe()
+        return
+    }
 
-	log.Printf("Processing file: %s", inputFile)
+    log.Printf("Processing file: %s", inputFile)
 
-	// Detect template to use
-	templateName := detectFileTemplate(inputFile)
-	log.Printf("Detected template: %s", templateName)
+    // Detect template to use
+    templateName := detectFileTemplate(inputFile)
+    log.Printf("Detected template: %s", templateName)
 
-	if templateName == "" {
-		log.Printf("No matching template for %s, falling back to real ffprobe", inputFile)
-		fallbackToRealFFProbe()
-		return
-	}
+    if templateName == "" {
+        log.Printf("No matching template for %s, falling back to real ffprobe", inputFile)
+        fallbackToRealFFProbe()
+        return
+    }
 
-	// Generate response
-	response := generateResponse(inputFile, templateName, analyzeDuration)
-	if response == nil {
-		log.Printf("Failed to generate response for %s", templateName)
-		fallbackToRealFFProbe()
-		return
-	}
+    // Generate response
+    response := generateResponse(inputFile, templateName, analyzeDuration)
+    if response == nil {
+        log.Printf("Failed to generate response for %s", templateName)
+        fallbackToRealFFProbe()
+        return
+    }
 
-	// Output response
-	if analyzeDuration {
-		// Plain text response for -analyzeduration
-		fmt.Print(response.(string)) // Cast response to string and print
-	} else if formatType == "json" {
-		// JSON response
-		responseJSON, err := json.MarshalIndent(response, "", "    ")
-		if err != nil {
-			log.Printf("Error encoding response to JSON: %v", err)
-			fallbackToRealFFProbe()
-			return
-		}
-		fmt.Print(string(responseJSON)) // Only JSON is printed to stdout
-	} else {
-		// Unsupported format
-		log.Printf("Unsupported format type: %s", formatType)
-		fallbackToRealFFProbe()
-	}
+    // Output response
+    if analyzeDuration {
+        // Plain text response for -analyzeduration
+        fmt.Print(response.(string)) // Cast response to string and print
+    } else if formatType == "json" {
+        // JSON response
+        responseJSON, err := json.MarshalIndent(response, "", "    ")
+        if err != nil {
+            log.Printf("Error encoding response to JSON: %v", err)
+            fallbackToRealFFProbe()
+            return
+        }
+        fmt.Print(string(responseJSON)) // Only JSON is printed to stdout
+    } else {
+        // Unsupported format
+        log.Printf("Unsupported format type: %s", formatType)
+        fallbackToRealFFProbe()
+    }
 }
