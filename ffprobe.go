@@ -431,7 +431,7 @@ func detectFileTemplate(filepath string) string {
 // Generate a static ffprobe response based on template and enhance with PTN data
 func generateResponse(filepath, templateName string, analyzeDuration bool) interface{} {
 	template, exists := TEMPLATES[templateName]
-	if !exists {
+	if (!exists) {
 		return nil
 	}
 
@@ -468,38 +468,77 @@ func generatePlainTextResponse(response FFProbeResponse) string {
 
 	// Add format information
 	builder.WriteString(fmt.Sprintf("Input #0, %s, from '%s':\n", response.Format.FormatName, response.Format.Filename))
-	builder.WriteString(fmt.Sprintf("  Duration: %s, bitrate: %s\n", response.Format.Duration, response.Format.BitRate))
-
-	// Add chapters
-	if len(response.Chapters) > 0 {
-		builder.WriteString("  Chapters:\n")
-		for _, chapter := range response.Chapters {
-			builder.WriteString(fmt.Sprintf("    Chapter #%d: start %.6f, end %.6f\n", chapter.Index, chapter.Start, chapter.End))
-			if chapter.Title != "" {
-				builder.WriteString(fmt.Sprintf("      Metadata:\n        title: %s\n", chapter.Title))
-			}
+	if response.Format.Metadata != nil {
+		builder.WriteString("  Metadata:\n")
+		for key, value := range response.Format.Metadata {
+			builder.WriteString(fmt.Sprintf("    %s: %s\n", key, value))
 		}
 	}
+	builder.WriteString(fmt.Sprintf("  Duration: %s, start: 0.000000, bitrate: %s\n", response.Format.Duration, response.Format.BitRate))
 
 	// Add streams
 	for _, stream := range response.Streams {
 		if stream.CodecType == "video" {
-			builder.WriteString(fmt.Sprintf("  Stream #%d: Video: %s, %dx%d, %s\n",
-				stream.Index, stream.CodecName, stream.Width, stream.Height, stream.BitRate))
+			builder.WriteString(fmt.Sprintf("  Stream #%d: Video: %s (%s), %s, %dx%d, %s, %s fps\n",
+				stream.Index, stream.CodecName, stream.CodecName, "yuv420p(tv, bt709, progressive)", stream.Width, stream.Height, stream.BitRate, "23.98"))
+			if stream.Metadata != nil {
+				builder.WriteString("    Metadata:\n")
+				for key, value := range stream.Metadata {
+					builder.WriteString(fmt.Sprintf("      %s: %s\n", key, value))
+				}
+			}
 		} else if stream.CodecType == "audio" {
-			builder.WriteString(fmt.Sprintf("  Stream #%d: Audio: %s, %d channels, %s Hz, %s\n",
-				stream.Index, stream.CodecName, stream.Channels, stream.SampleRate, stream.BitRate))
+			builder.WriteString(fmt.Sprintf("  Stream #%d: Audio: %s (%s), %s Hz, %d channels, %s\n",
+				stream.Index, stream.CodecName, stream.CodecName, stream.SampleRate, stream.Channels, stream.BitRate))
+			if stream.Metadata != nil {
+				builder.WriteString("    Metadata:\n")
+				for key, value := range stream.Metadata {
+					builder.WriteString(fmt.Sprintf("      %s: %s\n", key, value))
+				}
+			}
+			// Add side data if available
+			builder.WriteString("    Side data:\n")
+			builder.WriteString("      audio service type: main\n")
+		} else if stream.CodecType == "subtitle" {
+			builder.WriteString(fmt.Sprintf("  Stream #%d: Subtitle: %s (%s), %s\n",
+				stream.Index, stream.CodecName, stream.CodecName, stream.BitRate))
+			if stream.Metadata != nil {
+				builder.WriteString("    Metadata:\n")
+				for key, value := range stream.Metadata {
+					builder.WriteString(fmt.Sprintf("      %s: %s\n", key, value))
+				}
+			}
+		} else if stream.CodecType == "attachment" {
+			builder.WriteString(fmt.Sprintf("  Stream #%d: Video: %s, none\n", stream.Index, stream.CodecName))
 		}
 	}
 
 	return builder.String()
 }
 
+func generatePixelFormatsResponse() string {
+    return `Pixel formats:
+I.... = Supported Input  for conversion
+.O... = Supported Output for conversion
+..H.. = Hardware Accelerated format
+...P. = Paletted format
+....B = Bitstream format
+FLAGS NAME            NB_COMPONENTS BITS_PER_PIXEL
+-----
+IO... yuv420p                3            12
+IO... yuv422p                3            16
+IO... yuv444p                3            24
+IO... nv12                   3            12
+IO... yuvj420p               3            12
+`
+}
+
 // Parse ffprobe arguments to extract the file path
-func parseFFProbeArgs() (string, string, bool) {
+func parseFFProbeArgs() (string, string, bool, bool) {
 	var inputFile string
 	formatType := "json" // Default format
 	analyzeDuration := false
+	showPixelFormats := false
 
 	log.Println("Parsing ffprobe arguments")
 	for i, arg := range os.Args {
@@ -520,6 +559,12 @@ func parseFFProbeArgs() (string, string, bool) {
 			log.Println("Detected -analyzeduration flag")
 		}
 
+		 // Detect -show_pixel_formats flag
+		if arg == "-show_pixel_formats" {
+			showPixelFormats = true
+			log.Println("Detected -show_pixel_formats flag")
+		}
+
 		// Look for input file (not starting with dash and exists on filesystem)
 		if !strings.HasPrefix(arg, "-") {
 			log.Printf("Checking if argument is a file: %s", arg)
@@ -536,12 +581,7 @@ func parseFFProbeArgs() (string, string, bool) {
 		}
 	}
 
-	if inputFile == "" {
-		log.Println("No valid input file detected. Please provide a valid file.")
-		fmt.Fprintln(os.Stderr, "Error: No valid input file detected. Please provide a valid file.")
-		os.Exit(1)
-	}
-	return inputFile, formatType, analyzeDuration
+	return inputFile, formatType, analyzeDuration, showPixelFormats
 }
 
 // Execute the real ffprobe binary with the original arguments
@@ -577,7 +617,13 @@ func main() {
 
 	log.Printf("FFProbe shim called with args: %s", strings.Join(os.Args, " "))
 
-	inputFile, formatType, analyzeDuration := parseFFProbeArgs()
+	inputFile, formatType, analyzeDuration, showPixelFormats := parseFFProbeArgs()
+
+	if showPixelFormats {
+		// Return pixel formats response
+		fmt.Print(generatePixelFormatsResponse())
+		return
+	}
 
 	if inputFile == "" {
 		log.Printf("No input file found, falling back to real ffprobe")
