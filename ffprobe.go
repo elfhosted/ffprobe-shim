@@ -84,6 +84,8 @@ type Stream struct {
 	Disposition        map[string]int    `json:"disposition,omitempty"`
 	Tags               map[string]string `json:"tags,omitempty"`
 	SideDataList       []SideData        `json:"side_data_list,omitempty"`
+	Channels           int               `json:"channels,omitempty"`       // Add this field
+	SampleRate         string            `json:"sample_rate,omitempty"`    // Add this field
 }
 
 // Format represents ffprobe format information
