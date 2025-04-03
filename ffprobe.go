@@ -93,7 +93,7 @@ var TEMPLATES = map[string]FFProbeResponse{
 				CodecType: "video",
 				Width:     1920,
 				Height:    1080,
-				Duration:  "45.000000",
+				Duration:  "2700.000000",
 				BitRate:   "5000000",
 			},
 			{
@@ -103,6 +103,7 @@ var TEMPLATES = map[string]FFProbeResponse{
 				Channels:   6,
 				SampleRate: "48000",
 				BitRate:    "384000",
+				Duration:  "2700.000000",
 			},
 		},
 		Format: Format{
@@ -123,7 +124,7 @@ var TEMPLATES = map[string]FFProbeResponse{
 				CodecType: "video",
 				Width:     1920,
 				Height:    1080,
-				Duration:  "120.000000",
+				Duration:  "7200.000000",
 				BitRate:   "8000000",
 			},
 			{
@@ -131,6 +132,7 @@ var TEMPLATES = map[string]FFProbeResponse{
 				CodecName:  "dts",
 				CodecType:  "audio",
 				Channels:   6,
+				Duration:  "7200.000000",
 				SampleRate: "48000",
 				BitRate:    "1536000",
 			},
@@ -140,7 +142,7 @@ var TEMPLATES = map[string]FFProbeResponse{
 			NbStreams:      2,
 			FormatName:     "matroska,webm",
 			FormatLongName: "Matroska / WebM",
-			Duration:       "120.000000",
+			Duration:       "7200.000000",
 			Size:           "3500000000",
 			BitRate:        "9536000",
 		},
