@@ -42,32 +42,43 @@ type PatternInfo struct {
 
 // Stream represents an ffprobe media stream
 type Stream struct {
-	Index      int    `json:"index"`
-	CodecName  string `json:"codec_name"`
-	CodecType  string `json:"codec_type"`
-	Width      int    `json:"width,omitempty"`
-	Height     int    `json:"height,omitempty"`
-	Duration   string `json:"duration"`
-	BitRate    string `json:"bit_rate"`
-	Channels   int    `json:"channels,omitempty"`
-	SampleRate string `json:"sample_rate,omitempty"`
+	Index      int               `json:"index"`
+	CodecName  string            `json:"codec_name"`
+	CodecType  string            `json:"codec_type"`
+	Width      int               `json:"width,omitempty"`
+	Height     int               `json:"height,omitempty"`
+	Duration   string            `json:"duration"`
+	BitRate    string            `json:"bit_rate"`
+	Channels   int               `json:"channels,omitempty"`
+	SampleRate string            `json:"sample_rate,omitempty"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
 }
 
 // Format represents ffprobe format information
 type Format struct {
-	Filename       string `json:"filename"`
-	NbStreams      int    `json:"nb_streams"`
-	FormatName     string `json:"format_name"`
-	FormatLongName string `json:"format_long_name"`
-	Duration       string `json:"duration"`
-	Size           string `json:"size"`
-	BitRate        string `json:"bit_rate"`
+	Filename       string            `json:"filename"`
+	NbStreams      int               `json:"nb_streams"`
+	FormatName     string            `json:"format_name"`
+	FormatLongName string            `json:"format_long_name"`
+	Duration       string            `json:"duration"`
+	Size           string            `json:"size"`
+	BitRate        string            `json:"bit_rate"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+}
+
+// Chapter represents a media chapter
+type Chapter struct {
+	Index int     `json:"index"`
+	Start float64 `json:"start"`
+	End   float64 `json:"end"`
+	Title string  `json:"title"`
 }
 
 // FFProbeResponse represents the full ffprobe output structure
 type FFProbeResponse struct {
-	Streams []Stream `json:"streams"`
-	Format  Format   `json:"format"`
+	Streams  []Stream  `json:"streams"`
+	Format   Format    `json:"format"`
+	Chapters []Chapter `json:"chapters,omitempty"`
 }
 
 // Define pattern matching for different file types
@@ -418,7 +429,7 @@ func detectFileTemplate(filepath string) string {
 }
 
 // Generate a static ffprobe response based on template and enhance with PTN data
-func generateResponse(filepath, templateName string) *FFProbeResponse {
+func generateResponse(filepath, templateName string, analyzeDuration bool) *FFProbeResponse {
 	template, exists := TEMPLATES[templateName]
 	if !exists {
 		return nil
@@ -443,13 +454,55 @@ func generateResponse(filepath, templateName string) *FFProbeResponse {
 	// Enhance response with PTN data
 	enhanceResponseWithPTN(&response, filepath)
 
+	// Add chapters and detailed metadata if analyzeDuration is true
+	if analyzeDuration {
+		log.Println("Adding chapters and detailed metadata for -analyzeduration")
+		response.Format.Metadata = map[string]string{
+			"encoder":        "libebml v1.3.9 + libmatroska v1.5.2",
+			"creation_time":  "2020-04-03T04:08:26.000000Z",
+		}
+
+		// Example chapters
+		response.Chapters = []Chapter{
+			{Index: 0, Start: 0.0, End: 193.693, Title: "1"},
+			{Index: 1, Start: 193.693, End: 411.994, Title: "2"},
+			// Add more chapters as needed
+		}
+
+		// Add detailed stream metadata
+		for i := range response.Streams {
+			if response.Streams[i].CodecType == "video" {
+				response.Streams[i].Metadata = map[string]string{
+					"BPS-eng":                  "5212998",
+					"DURATION-eng":             "01:40:56.223000000",
+					"NUMBER_OF_FRAMES-eng":     "145204",
+					"NUMBER_OF_BYTES-eng":      "3946385162",
+					"_STATISTICS_WRITING_APP":  "mkvmerge v35.0.0 ('All The Love In The World') 64-bit",
+					"_STATISTICS_WRITING_DATE": "2020-04-03 04:08:26",
+					"_STATISTICS_TAGS":         "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES",
+				}
+			} else if response.Streams[i].CodecType == "audio" {
+				response.Streams[i].Metadata = map[string]string{
+					"BPS-eng":                  "384000",
+					"DURATION-eng":             "01:40:56.256000000",
+					"NUMBER_OF_FRAMES-eng":     "189258",
+					"NUMBER_OF_BYTES-eng":      "290700288",
+					"_STATISTICS_WRITING_APP":  "mkvmerge v35.0.0 ('All The Love In The World') 64-bit",
+					"_STATISTICS_WRITING_DATE": "2020-04-03 04:08:26",
+					"_STATISTICS_TAGS":         "BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES",
+				}
+			}
+		}
+	}
+
 	return &response
 }
 
 // Parse ffprobe arguments to extract the file path
-func parseFFProbeArgs() (string, string) {
+func parseFFProbeArgs() (string, string, bool) {
 	var inputFile string
 	formatType := "json" // Default format
+	analyzeDuration := false
 
 	log.Println("Parsing ffprobe arguments")
 	for i, arg := range os.Args {
@@ -464,6 +517,12 @@ func parseFFProbeArgs() (string, string) {
 			log.Printf("Detected format type: %s", formatType)
 		}
 
+		// Detect -analyzeduration flag
+		if arg == "-analyzeduration" {
+			analyzeDuration = true
+			log.Println("Detected -analyzeduration flag")
+		}
+
 		// Look for input file (not starting with dash and exists on filesystem)
 		if !strings.HasPrefix(arg, "-") {
 			if fileInfo, err := os.Stat(arg); err == nil && !fileInfo.IsDir() {
@@ -476,7 +535,7 @@ func parseFFProbeArgs() (string, string) {
 	if inputFile == "" {
 		log.Println("No input file detected")
 	}
-	return inputFile, formatType
+	return inputFile, formatType, analyzeDuration
 }
 
 // Execute the real ffprobe binary with the original arguments
@@ -512,7 +571,7 @@ func main() {
 
 	log.Printf("FFProbe shim called with args: %s", strings.Join(os.Args, " "))
 
-	inputFile, formatType := parseFFProbeArgs()
+	inputFile, formatType, analyzeDuration := parseFFProbeArgs()
 
 	if inputFile == "" {
 		log.Printf("No input file found, falling back to real ffprobe")
@@ -533,7 +592,7 @@ func main() {
 	}
 
 	// Generate response
-	response := generateResponse(inputFile, templateName)
+	response := generateResponse(inputFile, templateName, analyzeDuration)
 	if response == nil {
 		log.Printf("Failed to generate response for %s", templateName)
 		fallbackToRealFFProbe()
