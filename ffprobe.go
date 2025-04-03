@@ -27,7 +27,8 @@ var REAL_FFPROBE = func() string {
 func init() {
 	logFile, err := os.OpenFile("/tmp/ffprobe-shim.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Fatalf("Failed to open log file: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to open log file: %v\n", err)
+		os.Exit(1)
 	}
 	log.SetOutput(logFile)
 	log.Println("Logging initialized")
@@ -103,7 +104,7 @@ var TEMPLATES = map[string]FFProbeResponse{
 				Channels:   6,
 				SampleRate: "48000",
 				BitRate:    "384000",
-				Duration:  "2700.000000",
+				Duration:   "2700.000000",
 			},
 		},
 		Format: Format{
@@ -132,7 +133,7 @@ var TEMPLATES = map[string]FFProbeResponse{
 				CodecName:  "dts",
 				CodecType:  "audio",
 				Channels:   6,
-				Duration:  "7200.000000",
+				Duration:   "7200.000000",
 				SampleRate: "48000",
 				BitRate:    "1536000",
 			},
@@ -208,6 +209,8 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 			for i := range response.Streams {
 				if response.Streams[i].CodecType == "video" {
 					response.Streams[i].Duration = "24.000000"
+				} else if response.Streams[i].CodecType == "audio" {
+					response.Streams[i].Duration = "24.000000" // Set audio duration
 				}
 			}
 		} else {
@@ -215,6 +218,8 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 			for i := range response.Streams {
 				if response.Streams[i].CodecType == "video" {
 					response.Streams[i].Duration = "45.000000"
+				} else if response.Streams[i].CodecType == "audio" {
+					response.Streams[i].Duration = "45.000000" // Set audio duration
 				}
 			}
 		}
@@ -224,6 +229,8 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 		for i := range response.Streams {
 			if response.Streams[i].CodecType == "video" {
 				response.Streams[i].Duration = "120.000000"
+			} else if response.Streams[i].CodecType == "audio" {
+				response.Streams[i].Duration = "120.000000" // Set audio duration
 			}
 		}
 	}
@@ -534,8 +541,7 @@ func main() {
 			fallbackToRealFFProbe()
 			return
 		}
-		log.Printf("Generated JSON response: %s", string(responseJSON))
-		fmt.Print(string(responseJSON))
+		fmt.Print(string(responseJSON)) // Only JSON is printed to stdout
 	} else {
 		// If we don't support the requested format, fall back
 		log.Printf("Unsupported format type: %s", formatType)
