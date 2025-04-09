@@ -242,190 +242,193 @@ var AUDIO_CODEC_MAP = map[string]string{
 
 // Extract resolution and info from PTN metadata
 func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
-	filename := filepath
-	// Extract just the filename if it's a full path
-	if strings.Contains(filepath, "/") {
-		filename = filepath[strings.LastIndex(filepath, "/")+1:]
-	}
+    // Extract just the filename if it's a full path
+    filename := filepath
+    if strings.Contains(filepath, "/") {
+        filename = filepath[strings.LastIndex(filepath, "/")+1:]
+    }
 
-	info, err := ptn.Parse(filename)
-	if err != nil {
-		log.Printf("Error parsing torrent name: %v", err)
-		return
-	}
+    log.Printf("Parsing filename with PTN: %s", filename)
 
-	log.Printf("PTN info: %+v", info)
+    // Parse the filename using PTN
+    info, err := ptn.Parse(filename)
+    if err != nil {
+        log.Printf("Error parsing torrent name: %v", err)
+        return
+    }
 
-	// Set media duration based on type
-	if info.Episode != 0 {
-		// TV show episode - use typical episode lengths
-		if strings.Contains(strings.ToLower(info.Title), "anime") {
-			response.Format.Duration = "24.000000"
-			for i := range response.Streams {
-				if response.Streams[i].CodecType == "video" {
-					response.Streams[i].Duration = "24.000000"
-				} else if response.Streams[i].CodecType == "audio" {
-					response.Streams[i].Duration = "24.000000" // Set audio duration
-				}
-			}
-		} else {
-			response.Format.Duration = "2700.000000"
-			for i := range response.Streams {
-				if response.Streams[i].CodecType == "video" {
-					response.Streams[i].Duration = "2700.000000"
-				} else if response.Streams[i].CodecType == "audio" {
-					response.Streams[i].Duration = "2700.000000" // Set audio duration
-				}
-			}
-		}
-	} else {
-		// Movie - use typical movie length
-		response.Format.Duration = "7200.000000"
-		for i := range response.Streams {
-			if response.Streams[i].CodecType == "video" {
-				response.Streams[i].Duration = "7200.000000"
-			} else if response.Streams[i].CodecType == "audio" {
-				response.Streams[i].Duration = "7200.000000" // Set audio duration
-			}
-		}
-	}
+    log.Printf("PTN info: %+v", info)
 
-	// Set resolution based on quality
-	if info.Quality != "" {
-		width, height := 0, 0
+    // Set media duration based on type
+    if info.Episode != 0 {
+        // TV show episode - use typical episode lengths
+        if strings.Contains(strings.ToLower(info.Title), "anime") {
+            response.Format.Duration = "24.000000"
+            for i := range response.Streams {
+                if response.Streams[i].CodecType == "video" {
+                    response.Streams[i].Duration = "24.000000"
+                } else if response.Streams[i].CodecType == "audio" {
+                    response.Streams[i].Duration = "24.000000" // Set audio duration
+                }
+            }
+        } else {
+            response.Format.Duration = "2700.000000"
+            for i := range response.Streams {
+                if response.Streams[i].CodecType == "video" {
+                    response.Streams[i].Duration = "2700.000000"
+                } else if response.Streams[i].CodecType == "audio" {
+                    response.Streams[i].Duration = "2700.000000" // Set audio duration
+                }
+            }
+        }
+    } else {
+        // Movie - use typical movie length
+        response.Format.Duration = "7200.000000"
+        for i := range response.Streams {
+            if response.Streams[i].CodecType == "video" {
+                response.Streams[i].Duration = "7200.000000"
+            } else if response.Streams[i].CodecType == "audio" {
+                response.Streams[i].Duration = "7200.000000" // Set audio duration
+            }
+        }
+    }
 
-		if info.Quality == "720p" {
-			width, height = 1280, 720
-		} else if info.Quality == "1080p" {
-			width, height = 1920, 1080
-		} else if info.Quality == "2160p" || info.Quality == "4K" {
-			width, height = 3840, 2160
-		}
+    // Set resolution based on quality
+    if info.Quality != "" {
+        width, height := 0, 0
 
-		if width != 0 && height != 0 {
-			for i := range response.Streams {
-				if response.Streams[i].CodecType == "video" {
-					response.Streams[i].Width = width
-					response.Streams[i].Height = height
+        if info.Quality == "720p" {
+            width, height = 1280, 720
+        } else if info.Quality == "1080p" {
+            width, height = 1920, 1080
+        } else if info.Quality == "2160p" || info.Quality == "4K" {
+            width, height = 3840, 2160
+        }
 
-					// Adjust bitrate based on resolution
-					switch info.Quality {
-					case "720p":
-						response.Streams[i].BitRate = "3000000"
-					case "1080p":
-						response.Streams[i].BitRate = "8000000"
-					case "2160p", "4K":
-						response.Streams[i].BitRate = "25000000"
-						response.Streams[i].CodecName = "hevc" // 4K is often HEVC
-					}
-				}
-			}
-		}
-	}
+        if width != 0 && height != 0 {
+            for i := range response.Streams {
+                if response.Streams[i].CodecType == "video" {
+                    response.Streams[i].Width = width
+                    response.Streams[i].Height = height
 
-	// Try to determine video codec
-	videoCodec := ""
-	if info.Codec != "" {
-		lowerCodec := strings.ToLower(info.Codec)
-		if mappedCodec, exists := VIDEO_CODEC_MAP[lowerCodec]; exists {
-			videoCodec = mappedCodec
-		}
-	}
+                    // Adjust bitrate based on resolution
+                    switch info.Quality {
+                    case "720p":
+                        response.Streams[i].BitRate = "3000000"
+                    case "1080p":
+                        response.Streams[i].BitRate = "8000000"
+                    case "2160p", "4K":
+                        response.Streams[i].BitRate = "25000000"
+                        response.Streams[i].CodecName = "hevc" // 4K is often HEVC
+                    }
+                }
+            }
+        }
+    }
 
-	// Look through other fields for codec hints
-	if videoCodec == "" {
-		searchFields := []string{info.Group, info.Title, info.Container}
-		for _, field := range searchFields {
-			lowerField := strings.ToLower(field)
-			for key, value := range VIDEO_CODEC_MAP {
-				if strings.Contains(lowerField, key) {
-					videoCodec = value
-					break
-				}
-			}
-			if videoCodec != "" {
-				break
-			}
-		}
-	}
+    // Try to determine video codec
+    videoCodec := ""
+    if info.Codec != "" {
+        lowerCodec := strings.ToLower(info.Codec)
+        if mappedCodec, exists := VIDEO_CODEC_MAP[lowerCodec]; exists {
+            videoCodec = mappedCodec
+        }
+    }
 
-	// Apply video codec if found
-	if videoCodec != "" {
-		for i := range response.Streams {
-			if response.Streams[i].CodecType == "video" {
-				response.Streams[i].CodecName = videoCodec
-			}
-		}
-	}
+    // Look through other fields for codec hints
+    if videoCodec == "" {
+        searchFields := []string{info.Group, info.Title, info.Container}
+        for _, field := range searchFields {
+            lowerField := strings.ToLower(field)
+            for key, value := range VIDEO_CODEC_MAP {
+                if strings.Contains(lowerField, key) {
+                    videoCodec = value
+                    break
+                }
+            }
+            if videoCodec != "" {
+                break
+            }
+        }
+    }
 
-	// Try to determine audio codec
-	audioCodec := ""
-	searchFields := []string{info.Group, info.Title}
-	for _, field := range searchFields {
-		if field == "" {
-			continue
-		}
-		lowerField := strings.ToLower(field)
-		for key, value := range AUDIO_CODEC_MAP {
-			if strings.Contains(lowerField, key) {
-				audioCodec = value
-				break
-			}
-		}
-		if audioCodec != "" {
-			break
-		}
-	}
+    // Apply video codec if found
+    if videoCodec != "" {
+        for i := range response.Streams {
+            if response.Streams[i].CodecType == "video" {
+                response.Streams[i].CodecName = videoCodec
+            }
+        }
+    }
 
-	// Apply audio codec if found
-	if audioCodec != "" {
-		for i := range response.Streams {
-			if response.Streams[i].CodecType == "audio" {
-				response.Streams[i].CodecName = audioCodec
-			}
-		}
-	}
+    // Try to determine audio codec
+    audioCodec := ""
+    searchFields := []string{info.Group, info.Title}
+    for _, field := range searchFields {
+        if field == "" {
+            continue
+        }
+        lowerField := strings.ToLower(field)
+        for key, value := range AUDIO_CODEC_MAP {
+            if strings.Contains(lowerField, key) {
+                audioCodec = value
+                break
+            }
+        }
+        if audioCodec != "" {
+            break
+        }
+    }
 
-	// Adjust audio channels if present
-	channels := 2 // Default stereo
-	if strings.Contains(info.Group, "5.1") {
-		channels = 6
-	} else if strings.Contains(info.Group, "7.1") {
-		channels = 8
-	}
-	for i := range response.Streams {
-		if response.Streams[i].CodecType == "audio" {
-			response.Streams[i].Channels = channels
-		}
-	}
+    // Apply audio codec if found
+    if audioCodec != "" {
+        for i := range response.Streams {
+            if response.Streams[i].CodecType == "audio" {
+                response.Streams[i].CodecName = audioCodec
+            }
+        }
+    }
 
-	// Set size based on quality and duration
-	fileSize := "0"
-	switch {
-	case info.Quality == "720p":
-		fileSize = "1000000000" // ~1GB for 720p
-	case info.Quality == "1080p":
-		fileSize = "3500000000" // ~3.5GB for 1080p
-	case info.Quality == "2160p" || info.Quality == "4K":
-		fileSize = "15000000000" // ~15GB for 4K
-	default:
-		fileSize = "2000000000" // Default ~2GB
-	}
+    // Adjust audio channels if present
+    channels := 2 // Default stereo
+    if strings.Contains(info.Group, "5.1") {
+        channels = 6
+    } else if strings.Contains(info.Group, "7.1") {
+        channels = 8
+    }
+    for i := range response.Streams {
+        if response.Streams[i].CodecType == "audio" {
+            response.Streams[i].Channels = channels
+        }
+    }
 
-	response.Format.Size = fileSize
+    // Set size based on quality and duration
+    fileSize := "0"
+    switch {
+    case info.Quality == "720p":
+        fileSize = "1000000000" // ~1GB for 720p
+    case info.Quality == "1080p":
+        fileSize = "3500000000" // ~3.5GB for 1080p
+    case info.Quality == "2160p" || info.Quality == "4K":
+        fileSize = "15000000000" // ~15GB for 4K
+    default:
+        fileSize = "2000000000" // Default ~2GB
+    }
 
-	// Set total bitrate (sum of audio and video)
-	totalBitRate := 0
-	for _, stream := range response.Streams {
-		br, err := strconv.Atoi(stream.BitRate)
-		if err == nil {
-			totalBitRate += br
-		}
-	}
+    response.Format.Size = fileSize
 
-	if totalBitRate > 0 {
-		response.Format.BitRate = strconv.Itoa(totalBitRate)
-	}
+    // Set total bitrate (sum of audio and video)
+    totalBitRate := 0
+    for _, stream := range response.Streams {
+        br, err := strconv.Atoi(stream.BitRate)
+        if err == nil {
+            totalBitRate += br
+        }
+    }
+
+    if totalBitRate > 0 {
+        response.Format.BitRate = strconv.Itoa(totalBitRate)
+    }
 }
 
 // Detect which template to use based on file path
@@ -688,7 +691,7 @@ func main() {
     responseJSON, err := json.MarshalIndent(response, "", "    ")
     if err != nil {
         log.Printf("Error encoding response to JSON: %v", err)
-        fallbackToRealFFProbe()
+        fallbackToRealFFProbe() // Correct function name
         return
     }
     fmt.Print(string(responseJSON)) // Only JSON is printed to stdout
