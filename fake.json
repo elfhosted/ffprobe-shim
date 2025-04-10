@@ -1,0 +1,64 @@
+{
+    "streams": [
+        {
+            "index": 0,
+            "codec_name": "hevc",
+            "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+            "profile": "Main",
+            "codec_type": "video",
+            "codec_tag_string": "avc1",
+            "codec_tag": "0x31637661",
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "chroma_location": "left",
+            "field_order": "progressive",
+            "r_frame_rate": "24000/1001",
+            "avg_frame_rate": "24000/1001",
+            "time_base": "1/24000",
+            "start_time": "0:00:00.000000",
+            "duration": "0:45:00.000",
+            "bit_rate": "5000000",
+            "disposition": {
+                "default": 1,
+                "dub": 0,
+                "original": 0
+            },
+            "tags": {
+                "creation_time": "2024-10-22T13:48:39.000000Z",
+                "encoder": "JVT/AVC Coding",
+                "language": "und"
+            }
+        },
+        {
+            "index": 1,
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "duration": "2700.000000",
+            "bit_rate": "384000",
+            "channels": 2,
+            "sample_rate": "48000"
+        }
+    ],
+    "format": {
+        "filename": "My Awesome Movie (2021) S01 (2160p MAX WEB-DL Hybrid H265 DV HDR DDP Atmos 5.1 English - HONE)/My Awesome Movie (2021) S01E01 (2160p MAX WEB-DL Hybrid H265 DV HDR DDP Atmos 5.1 English - HONE).mkv",
+        "nb_streams": 2,
+        "format_name": "matroska,webm",
+        "format_long_name": "Matroska / WebM",
+        "duration": "2700.000000",
+        "size": "2000000000",
+        "bit_rate": "5384000",
+        "tags": {
+            "compatible_brands": "mp42isomavc1",
+            "creation_time": "2024-10-22T13:48:39.000000Z",
+            "encoder": "DVDFab 12.0.7.0",
+            "major_brand": "mp42",
+            "minor_version": "0",
+            "title": "My Awesome Movie (2021) S01E01 (2160p MAX WEB-DL Hybrid H265 DV HDR DDP Atmos 5.1 English - HONE).mkv"
+        }
+    }
+}

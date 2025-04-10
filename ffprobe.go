@@ -259,6 +259,46 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 
     log.Printf("PTN info: %+v", info)
 
+    // Set resolution based on PTN's Resolution field
+    width, height := 0, 0
+    switch info.Resolution {
+    case "720p":
+        width, height = 1280, 720
+    case "1080p":
+        width, height = 1920, 1080
+    case "2160p", "4K":
+        width, height = 3840, 2160
+    }
+
+    if width != 0 && height != 0 {
+        for i := range response.Streams {
+            if response.Streams[i].CodecType == "video" {
+                response.Streams[i].Width = width
+                response.Streams[i].Height = height
+
+                // Adjust bitrate based on resolution
+                switch info.Resolution {
+                case "720p":
+                    response.Streams[i].BitRate = "3000000"
+                case "1080p":
+                    response.Streams[i].BitRate = "8000000"
+                case "2160p", "4K":
+                    response.Streams[i].BitRate = "25000000"
+                    response.Streams[i].CodecName = "hevc" // 4K is often HEVC
+                }
+            }
+        }
+    }
+
+    // Infer additional values from the filename
+    if strings.Contains(strings.ToUpper(filename), "HDR") {
+        for i := range response.Streams {
+            if response.Streams[i].CodecType == "video" {
+                response.Streams[i].Profile = "Main 10" // HDR typically uses Main 10 profile
+            }
+        }
+    }
+	
     // Set media duration based on type
     if info.Episode != 0 {
         // TV show episode - use typical episode lengths
@@ -289,39 +329,6 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
                 response.Streams[i].Duration = "7200.000000"
             } else if response.Streams[i].CodecType == "audio" {
                 response.Streams[i].Duration = "7200.000000" // Set audio duration
-            }
-        }
-    }
-
-    // Set resolution based on quality
-    if info.Quality != "" {
-        width, height := 0, 0
-
-        if info.Quality == "720p" {
-            width, height = 1280, 720
-        } else if info.Quality == "1080p" {
-            width, height = 1920, 1080
-        } else if info.Quality == "2160p" || info.Quality == "4K" {
-            width, height = 3840, 2160
-        }
-
-        if width != 0 && height != 0 {
-            for i := range response.Streams {
-                if response.Streams[i].CodecType == "video" {
-                    response.Streams[i].Width = width
-                    response.Streams[i].Height = height
-
-                    // Adjust bitrate based on resolution
-                    switch info.Quality {
-                    case "720p":
-                        response.Streams[i].BitRate = "3000000"
-                    case "1080p":
-                        response.Streams[i].BitRate = "8000000"
-                    case "2160p", "4K":
-                        response.Streams[i].BitRate = "25000000"
-                        response.Streams[i].CodecName = "hevc" // 4K is often HEVC
-                    }
-                }
             }
         }
     }
