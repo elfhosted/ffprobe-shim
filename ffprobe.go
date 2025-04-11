@@ -370,20 +370,13 @@ func enhanceResponseWithPTN(response *FFProbeResponse, filepath string) {
 
     // Try to determine audio codec
     audioCodec := ""
-    searchFields := []string{info.Group, info.Title}
-    for _, field := range searchFields {
-        if field == "" {
-            continue
-        }
-        lowerField := strings.ToLower(field)
+    if info.Audio != "" {
+        lowerAudio := strings.ToLower(info.Audio)
         for key, value := range AUDIO_CODEC_MAP {
-            if strings.Contains(lowerField, key) {
+            if strings.Contains(lowerAudio, key) {
                 audioCodec = value
                 break
             }
-        }
-        if audioCodec != "" {
-            break
         }
     }
 
